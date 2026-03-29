@@ -327,7 +327,6 @@ const ParrotFrontApp = () => {
       {step === 'writing' && (
         <div className="w-full max-w-3xl animate-in slide-in-from-bottom-8 duration-500">
           
-          {/* 💡 [UI 픽스] 헤더가 구겨지지 않게 flex-col 적용 (모바일에서 위아래로 깔끔하게 배치) */}
           <header className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 sm:p-5 rounded-[2rem] shadow-sm border border-emerald-100 gap-3">
             <h1 className="text-xl font-black text-emerald-600 flex items-center gap-2">🦜 Parrot Diary</h1>
             <div className="flex items-center gap-3">
@@ -559,6 +558,26 @@ const ParrotFrontApp = () => {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 🚀 [신규 추가] 이메일 확인 유도 (프리미엄 CTA 박스) */}
+            <div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-3xl animate-bounce">💌</span>
+                  <h4 className="font-extrabold text-lg text-white tracking-tight">
+                    잠깐! 더 자세한 내용은 이메일을 확인하세요!
+                  </h4>
+                </div>
+                <p className="text-emerald-50 text-[15px] leading-relaxed font-medium break-keep">
+                  보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300">'전문 첨삭 콘텐츠'</strong>는 
+                  내 아이만을 위한 소중한 <span className="bg-emerald-900/40 px-2 py-0.5 rounded-md text-white border border-emerald-500/30 inline-block mt-1 sm:mt-0">맞춤형 참고서 DB</span> 겸 
+                  아이의 <span className="bg-emerald-900/40 px-2 py-0.5 rounded-md text-white border border-emerald-500/30 inline-block mt-1 sm:mt-0">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
+                  <br/><span className="block mt-4 font-bold text-white text-base bg-emerald-800/50 p-3 rounded-xl border border-emerald-500/30 text-center">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
+                </p>
+              </div>
             </div>
 
             <button onClick={closePopup} className="w-full mt-6 sm:mt-8 bg-gray-900 text-white font-black py-4 sm:py-5 rounded-2xl hover:bg-black transition-colors shadow-lg shadow-gray-200 text-lg">
