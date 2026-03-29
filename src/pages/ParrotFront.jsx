@@ -567,7 +567,25 @@ const ParrotFrontApp = () => {
                 </div>
               </div>
             </div>
-
+{/* 💡 시선 강탈 이메일 초대장 블록 탑재 */}
+<div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border border-emerald-400">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
+                    <span className="text-3xl sm:text-4xl animate-bounce">💌</span>
+                    <h4 className="font-extrabold text-lg sm:text-xl text-white tracking-tight">
+                      잠깐! 더 자세한 내용은 이메일을 확인하세요!
+                    </h4>
+                  </div>
+                  <p className="text-emerald-50 text-sm sm:text-[15px] leading-relaxed font-medium break-keep">
+                    보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
+                    내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">맞춤형 참고서 DB</span> 겸 
+                    아이의 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
+                    <br/><span className="block mt-5 font-bold text-white text-[15px] sm:text-base bg-emerald-800/80 p-3 sm:p-4 rounded-xl border border-emerald-500 text-center shadow-inner">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
+                  </p>
+                </div>
+              </div>
+              {/* 👆 초대장 블록 끝 👆 */}
             <div className="shrink-0 mt-2 sm:mt-4 pt-4 border-t border-gray-100">
               <button onClick={closePopup} className="w-full bg-gray-900 text-white font-black py-4 sm:py-5 rounded-2xl hover:bg-black transition-colors shadow-lg shadow-gray-200 text-lg">
                 확인했어요!
