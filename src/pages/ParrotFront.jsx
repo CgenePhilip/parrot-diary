@@ -46,9 +46,6 @@ const ParrotFrontApp = () => {
     return text.replace(/\[blank_(\d+)_([^\]]+)\]/g, '[_ _ _ _ _$1_$2]');
   };
 
-  // ==========================================
-  // 💡 [버그 픽스] 포트폴리오로 들어오더라도 '테마(앙꼬)'는 무조건 가져오도록 수정!
-  // ==========================================
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const historyEmail = urlParams.get('history_email');
@@ -56,7 +53,6 @@ const ParrotFrontApp = () => {
     if (historyEmail) {
       setEmail(historyEmail);
       fetchHistory(historyEmail); 
-      // 🚨 기존에 있던 return; 을 삭제했습니다! 이제 포트폴리오 창을 띄우면서도 뒤에서는 템플릿을 열심히 가져옵니다.
     }
 
     const fetchRandomTemplate = async () => {
@@ -255,9 +251,6 @@ const ParrotFrontApp = () => {
         </div>
       )}
 
-      {/* ==========================================
-          [STEP 1] 인트로 화면
-      ========================================== */}
       {step === 'intro' && !showConfetti && (
         <div className="w-full max-w-xl bg-white rounded-[2.5rem] shadow-xl p-10 relative z-10 animate-in fade-in zoom-in-95 duration-500">
           <div className="text-center space-y-6">
@@ -321,9 +314,6 @@ const ParrotFrontApp = () => {
         </div>
       )}
 
-      {/* ==========================================
-          [STEP 2] 메인 일기 작성 화면 
-      ========================================== */}
       {step === 'writing' && (
         <div className="w-full max-w-3xl animate-in slide-in-from-bottom-8 duration-500">
           
@@ -400,9 +390,6 @@ const ParrotFrontApp = () => {
         </div>
       )}
 
-      {/* ==========================================
-          [STEP 3] 🎓 하버드 패럿 박사의 포트폴리오
-      ========================================== */}
       {step === 'history' && (
         <div className="w-full max-w-3xl animate-in fade-in zoom-in-95 duration-500">
           <header className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 sm:p-6 rounded-[2rem] shadow-sm border border-pink-100 gap-3">
@@ -469,127 +456,129 @@ const ParrotFrontApp = () => {
       ========================================== */}
       {aiResult && step === 'writing' && (
         <div className="fixed inset-0 bg-emerald-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[50]">
-          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
             
             <button onClick={closePopup} className="absolute top-4 sm:top-6 right-4 sm:right-6 text-gray-400 hover:text-gray-600 text-3xl font-black z-10 p-2">✕</button>
             
-            <div className="text-center mb-6 sm:mb-8 mt-4 sm:mt-2">
-              {/* 💡 [v14.0 FINAL] 학사모(🎓)가 앵무새 앞으로 오고 머리 위에 딱 맞도록 수정 */}
-              <div className="flex justify-center mb-4 relative w-fit mx-auto mt-6">
-                <span className="text-6xl sm:text-7xl relative z-10">🦜</span>
-                <span className="text-4xl absolute -top-5 -left-1 sm:-top-6 sm:-left-2 -rotate-12 z-20 drop-shadow-md">🎓</span>
+            <div className="text-center mb-6 sm:mb-8 mt-4 sm:mt-2 shrink-0">
+              {/* 💡 학사모 위치 완벽 고정 */}
+              <div className="relative inline-block mt-4 mb-2">
+                <span className="text-7xl block">🦜</span>
+                <span className="text-5xl absolute -top-4 -left-3 -rotate-12 z-20 drop-shadow-md">🎓</span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-black text-gray-800 uppercase tracking-tighter">Dr. Parrot's Feedback</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-gray-800 uppercase tracking-tighter mt-2">Dr. Parrot's Feedback</h2>
             </div>
             
-            <div className="bg-emerald-50 p-4 sm:p-6 rounded-3xl mb-6 border-l-8 border-emerald-500">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 border-b border-emerald-200 pb-3">
-                <h3 className="text-emerald-800 font-bold flex items-center gap-1.5 text-lg">
-                  <span>⭕</span> Corrected
-                </h3>
-                <button 
-                  onClick={() => handleListenAndRepeat(aiResult, 'popup')}
-                  className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
-                    isPlaying && playingId === 'popup'
-                      ? 'bg-red-500 text-white animate-pulse' 
-                      : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:scale-105 hover:shadow-md'
-                  }`}
-                >
-                  {isPlaying && playingId === 'popup' ? '🛑 그만 듣기' : '🎧 Listen & Repeat (3회)'}
-                </button>
+            <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 pb-4">
+              <div className="bg-emerald-50 p-4 sm:p-6 rounded-3xl mb-6 border-l-8 border-emerald-500">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 border-b border-emerald-200 pb-3">
+                  <h3 className="text-emerald-800 font-bold flex items-center gap-1.5 text-lg">
+                    <span>⭕</span> Corrected
+                  </h3>
+                  <button 
+                    onClick={() => handleListenAndRepeat(aiResult, 'popup')}
+                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm ${
+                      isPlaying && playingId === 'popup'
+                        ? 'bg-red-500 text-white animate-pulse' 
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:scale-105 hover:shadow-md'
+                    }`}
+                  >
+                    {isPlaying && playingId === 'popup' ? '🛑 그만 듣기' : '🎧 Listen & Repeat (3회)'}
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {aiResult.corrected_lines && aiResult.corrected_lines.map((line, idx) => {
+                    const parts = line.split(' / ');
+                    return (
+                      <div key={idx} className="bg-white p-3 rounded-xl border border-emerald-100">
+                        <div className="text-emerald-900 font-bold text-lg">{parts[0]}</div>
+                        <div className="text-emerald-600 text-sm mt-1">{parts[1]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {aiResult.corrected_lines && aiResult.corrected_lines.map((line, idx) => {
-                  const parts = line.split(' / ');
-                  return (
-                    <div key={idx} className="bg-white p-3 rounded-xl border border-emerald-100">
-                      <div className="text-emerald-900 font-bold text-lg">{parts[0]}</div>
-                      <div className="text-emerald-600 text-sm mt-1">{parts[1]}</div>
+              <div className="space-y-4">
+                {aiResult.mom_guide && (
+                  <div className="flex gap-4 bg-purple-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
+                    <div className="text-purple-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-purple-100">👩‍🏫</div>
+                    <div>
+                      <h4 className="font-bold text-purple-900 mb-1">어머니 가이드</h4>
+                      <p className="text-purple-800 text-sm leading-relaxed">{aiResult.mom_guide}</p>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+
+                {aiResult.vivid_expression && (
+                  <div className="flex gap-4 bg-orange-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
+                    <div className="text-orange-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-orange-100">💡</div>
+                    <div>
+                      <h4 className="font-bold text-orange-900 mb-1">더 생생한 원어민 표현</h4>
+                      <p className="text-orange-800 font-bold mb-1">"{aiResult.vivid_expression.expression}"</p>
+                      <p className="text-orange-700 text-sm leading-relaxed">{aiResult.vivid_expression.why}</p>
+                    </div>
+                  </div>
+                )}
+
+                {aiResult.expression && (
+                  <div className="flex gap-4 bg-blue-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
+                    <div className="text-blue-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-blue-100">📖</div>
+                    <div className="w-full">
+                      <h4 className="font-bold text-blue-900 mb-2">핵심 영단어</h4>
+                      <ul className="space-y-2">
+                        {Object.entries(aiResult.expression).map(([k, v], idx) => (
+                          <li key={idx} className="text-sm bg-white px-3 py-2 rounded-lg border border-blue-100">
+                            <strong className="text-blue-700">{k}</strong> : <span className="text-blue-600">{v}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {aiResult.tip && (
+                  <div className="flex gap-4 bg-pink-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
+                    <div className="text-pink-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-pink-100">✨</div>
+                    <div>
+                      <h4 className="font-bold text-pink-900 mb-1">선생님의 한마디</h4>
+                      <p className="text-pink-800 text-sm leading-relaxed">{aiResult.tip}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 💡 [v14.1 FINAL] 시선 강탈 이메일 초대장 블록 완벽 탑재 & 고정 */}
+              <div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border border-emerald-400">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
+                    <span className="text-3xl sm:text-4xl animate-bounce">💌</span>
+                    <h4 className="font-extrabold text-lg sm:text-xl text-white tracking-tight">
+                      잠깐! 더 자세한 내용은 이메일을 확인하세요!
+                    </h4>
+                  </div>
+                  <p className="text-emerald-50 text-sm sm:text-[15px] leading-relaxed font-medium break-keep">
+                    보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
+                    내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">맞춤형 참고서 DB</span> 겸 
+                    아이의 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
+                    <br/><span className="block mt-5 font-bold text-white text-[15px] sm:text-base bg-emerald-800/80 p-3 sm:p-4 rounded-xl border border-emerald-500 text-center shadow-inner">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {aiResult.mom_guide && (
-                <div className="flex gap-4 bg-purple-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
-                  <div className="text-purple-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-purple-100">👩‍🏫</div>
-                  <div>
-                    <h4 className="font-bold text-purple-900 mb-1">어머니 가이드</h4>
-                    <p className="text-purple-800 text-sm leading-relaxed">{aiResult.mom_guide}</p>
-                  </div>
-                </div>
-              )}
-
-              {aiResult.vivid_expression && (
-                <div className="flex gap-4 bg-orange-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
-                  <div className="text-orange-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-orange-100">💡</div>
-                  <div>
-                    <h4 className="font-bold text-orange-900 mb-1">더 생생한 원어민 표현</h4>
-                    <p className="text-orange-800 font-bold mb-1">"{aiResult.vivid_expression.expression}"</p>
-                    <p className="text-orange-700 text-sm leading-relaxed">{aiResult.vivid_expression.why}</p>
-                  </div>
-                </div>
-              )}
-
-              {aiResult.expression && (
-                <div className="flex gap-4 bg-blue-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
-                  <div className="text-blue-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-blue-100">📖</div>
-                  <div className="w-full">
-                    <h4 className="font-bold text-blue-900 mb-2">핵심 영단어</h4>
-                    <ul className="space-y-2">
-                      {Object.entries(aiResult.expression).map(([k, v], idx) => (
-                        <li key={idx} className="text-sm bg-white px-3 py-2 rounded-lg border border-blue-100">
-                          <strong className="text-blue-700">{k}</strong> : <span className="text-blue-600">{v}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {aiResult.tip && (
-                <div className="flex gap-4 bg-pink-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
-                  <div className="text-pink-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-pink-100">✨</div>
-                  <div>
-                    <h4 className="font-bold text-pink-900 mb-1">선생님의 한마디</h4>
-                    <p className="text-pink-800 text-sm leading-relaxed">{aiResult.tip}</p>
-                  </div>
-                </div>
-              )}
+            <div className="shrink-0 mt-2 sm:mt-4 pt-4 border-t border-gray-100">
+              <button onClick={closePopup} className="w-full bg-gray-900 text-white font-black py-4 sm:py-5 rounded-2xl hover:bg-black transition-colors shadow-lg shadow-gray-200 text-lg">
+                확인했어요!
+              </button>
             </div>
 
-            {/* 💡 [v14.0 FINAL] 시선 강탈 이메일 초대장 블록 완벽 탑재 */}
-            <div className="mt-8 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border-2 border-emerald-400">
-              <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
-                  <span className="text-4xl animate-bounce">💌</span>
-                  <h4 className="font-extrabold text-xl text-white tracking-tight">
-                    잠깐! 더 자세한 내용은 이메일을 확인하세요!
-                  </h4>
-                </div>
-                <p className="text-emerald-50 text-[15px] leading-relaxed font-medium break-keep">
-                  보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
-                  내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">맞춤형 참고서 DB</span> 겸 
-                  아이의 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
-                  <br/><span className="block mt-5 font-bold text-white text-base bg-emerald-800/80 p-4 rounded-xl border border-emerald-500 text-center shadow-inner">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
-                </p>
-              </div>
-            </div>
-
-            <button onClick={closePopup} className="w-full mt-6 sm:mt-8 bg-gray-900 text-white font-black py-4 sm:py-5 rounded-2xl hover:bg-black transition-colors shadow-lg shadow-gray-200 text-lg">
-              확인했어요!
-            </button>
           </div>
         </div>
       )}
 
-      {/* ==========================================
-          [POPUP] 외부 브라우저 탈출용 모달창
-      ========================================== */}
       {needExternalBrowser && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
           <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95">
