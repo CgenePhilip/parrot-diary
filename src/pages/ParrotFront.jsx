@@ -49,10 +49,14 @@ const ParrotFrontApp = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const historyEmail = urlParams.get('history_email');
+    const autoEmail = urlParams.get('email'); // 💡 [수정] 결제 완료 메일에서 넘어올 때 사용할 파라미터
 
     if (historyEmail) {
       setEmail(historyEmail);
       fetchHistory(historyEmail); 
+    } else if (autoEmail) {
+      // 결제 성공 메일에서 넘어오면, 이메일만 채워두고 인트로(레벨선택) 화면에 머물게 합니다!
+      setEmail(autoEmail); 
     }
 
     const fetchRandomTemplate = async () => {
@@ -393,7 +397,7 @@ const ParrotFrontApp = () => {
       {step === 'history' && (
         <div className="w-full max-w-3xl animate-in fade-in zoom-in-95 duration-500">
           <header className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 sm:p-6 rounded-[2rem] shadow-sm border border-pink-100 gap-3">
-            <h1 className="text-xl sm:text-2xl font-black text-pink-600 flex items-center gap-2">🎓 하버드 패럿 포트폴리오</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-pink-600 flex items-center gap-2">🎓 Dr. Parrot AI 포트폴리오</h1>
             <button onClick={() => setStep('intro')} className="bg-gray-100 text-gray-600 px-5 py-2 rounded-full font-bold hover:bg-gray-200">
               돌아가기
             </button>
@@ -451,9 +455,6 @@ const ParrotFrontApp = () => {
         </div>
       )}
 
-      {/* ==========================================
-          [POPUP] 작성 후 보여지는 결과 모달창
-      ========================================== */}
       {aiResult && step === 'writing' && (
         <div className="fixed inset-0 bg-emerald-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[50]">
           <div className="bg-white w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
@@ -461,7 +462,6 @@ const ParrotFrontApp = () => {
             <button onClick={closePopup} className="absolute top-4 sm:top-6 right-4 sm:right-6 text-gray-400 hover:text-gray-600 text-3xl font-black z-10 p-2">✕</button>
             
             <div className="text-center mb-6 sm:mb-8 mt-4 sm:mt-2 shrink-0">
-              {/* 💡 학사모 위치 완벽 고정 */}
               <div className="relative inline-block mt-4 mb-2">
                 <span className="text-7xl block">🦜</span>
                 <span className="text-5xl absolute -top-4 -left-3 -rotate-12 z-20 drop-shadow-md">🎓</span>
@@ -549,7 +549,6 @@ const ParrotFrontApp = () => {
                 )}
               </div>
 
-              {/* 💡 [v14.1 FINAL] 시선 강탈 이메일 초대장 블록 완벽 탑재 & 고정 */}
               <div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border border-emerald-400">
                 <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
                 <div className="relative z-10">
@@ -585,7 +584,7 @@ const ParrotFrontApp = () => {
             <div className="text-6xl mb-4">😢</div>
             <h3 className="text-2xl font-black text-gray-800 mb-2">소리를 들을 수 없어요!</h3>
             <p className="text-gray-500 font-medium text-sm mb-6 leading-relaxed">
-              카카오톡에서는 음성 기능을 지원하지 않아요.<br/>아래 버튼을 누르면 <strong>하버드 박사 패럿의 포트폴리오</strong>(크롬/사파리)로 이동해서 맘껏 들을 수 있습니다!
+              카카오톡에서는 음성 기능을 지원하지 않아요.<br/>아래 버튼을 누르면 <strong>Dr. Parrot AI의 포트폴리오</strong>(크롬/사파리)로 이동해서 맘껏 들을 수 있습니다!
             </p>
 
             <button 
