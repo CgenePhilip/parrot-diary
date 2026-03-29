@@ -474,9 +474,10 @@ const ParrotFrontApp = () => {
             <button onClick={closePopup} className="absolute top-4 sm:top-6 right-4 sm:right-6 text-gray-400 hover:text-gray-600 text-3xl font-black z-10 p-2">✕</button>
             
             <div className="text-center mb-6 sm:mb-8 mt-4 sm:mt-2">
-              <div className="flex justify-center mb-4 relative w-fit mx-auto mt-4">
+              {/* 💡 [v14.0 FINAL] 학사모(🎓)가 앵무새 앞으로 오고 머리 위에 딱 맞도록 수정 */}
+              <div className="flex justify-center mb-4 relative w-fit mx-auto mt-6">
                 <span className="text-6xl sm:text-7xl relative z-10">🦜</span>
-                <span className="text-4xl absolute -top-6 left-3 sm:left-4 -rotate-12 z-20 drop-shadow-md">🎓</span>
+                <span className="text-4xl absolute -top-5 -left-1 sm:-top-6 sm:-left-2 -rotate-12 z-20 drop-shadow-md">🎓</span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-gray-800 uppercase tracking-tighter">Dr. Parrot's Feedback</h2>
             </div>
@@ -560,22 +561,21 @@ const ParrotFrontApp = () => {
               )}
             </div>
 
-            {/* 🚀 [신규 추가] 이메일 확인 유도 (프리미엄 CTA 박스) */}
-            <div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            {/* 💡 [v14.0 FINAL] 시선 강탈 이메일 초대장 블록 완벽 탑재 */}
+            <div className="mt-8 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border-2 border-emerald-400">
               <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-              
               <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-3xl animate-bounce">💌</span>
-                  <h4 className="font-extrabold text-lg text-white tracking-tight">
+                <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
+                  <span className="text-4xl animate-bounce">💌</span>
+                  <h4 className="font-extrabold text-xl text-white tracking-tight">
                     잠깐! 더 자세한 내용은 이메일을 확인하세요!
                   </h4>
                 </div>
                 <p className="text-emerald-50 text-[15px] leading-relaxed font-medium break-keep">
-                  보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300">'전문 첨삭 콘텐츠'</strong>는 
-                  내 아이만을 위한 소중한 <span className="bg-emerald-900/40 px-2 py-0.5 rounded-md text-white border border-emerald-500/30 inline-block mt-1 sm:mt-0">맞춤형 참고서 DB</span> 겸 
-                  아이의 <span className="bg-emerald-900/40 px-2 py-0.5 rounded-md text-white border border-emerald-500/30 inline-block mt-1 sm:mt-0">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
-                  <br/><span className="block mt-4 font-bold text-white text-base bg-emerald-800/50 p-3 rounded-xl border border-emerald-500/30 text-center">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
+                  보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
+                  내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">맞춤형 참고서 DB</span> 겸 
+                  아이의 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
+                  <br/><span className="block mt-5 font-bold text-white text-base bg-emerald-800/80 p-4 rounded-xl border border-emerald-500 text-center shadow-inner">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
                 </p>
               </div>
             </div>
