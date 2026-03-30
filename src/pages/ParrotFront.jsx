@@ -1,3 +1,4 @@
+/* 📂 ParrotFront.jsx - v28.0 FINAL (Perfect Client-Server Sync) */
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, addDoc, query, where } from 'firebase/firestore';
@@ -11,10 +12,10 @@ const ParrotFrontApp = () => {
   const [templateData, setTemplateData] = useState(null);
   const [diaryInput, setDiaryInput] = useState('');
   
-  const [credits, setCredits] = useState(() => {
-    const saved = localStorage.getItem('parrot_credits');
-    return saved !== null ? parseInt(saved, 10) : 33;
-  });
+  // 💡 [완벽 픽스 2] 초기값을 무조건 0으로 둡니다. (과거 유저의 캐시 데이터 오염 완벽 차단)
+  const [credits, setCredits] = useState(0);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [isCheckingLogin, setIsCheckingLogin] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [aiResult, setAiResult] = useState(null);
@@ -25,9 +26,12 @@ const ParrotFrontApp = () => {
   const [needExternalBrowser, setNeedExternalBrowser] = useState(false);
   const [historyList, setHistoryList] = useState([]);
 
+  // 로컬 스토리지는 보조 수단으로만 사용하되, 무조건 '이메일별'로 격리해서 저장합니다.
   useEffect(() => {
-    localStorage.setItem('parrot_credits', credits);
-  }, [credits]);
+    if (email && credits > 0) {
+      localStorage.setItem(`parrot_credits_${email}`, credits);
+    }
+  }, [credits, email]);
 
   const levelConfig = {
     'beginner': { label: '초보', activeClass: 'bg-lime-500 text-white shadow-md shadow-lime-200 scale-105' },
@@ -49,13 +53,12 @@ const ParrotFrontApp = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const historyEmail = urlParams.get('history_email');
-    const autoEmail = urlParams.get('email'); // 💡 [수정] 결제 완료 메일에서 넘어올 때 사용할 파라미터
+    const autoEmail = urlParams.get('email'); 
 
     if (historyEmail) {
       setEmail(historyEmail);
       fetchHistory(historyEmail); 
     } else if (autoEmail) {
-      // 결제 성공 메일에서 넘어오면, 이메일만 채워두고 인트로(레벨선택) 화면에 머물게 합니다!
       setEmail(autoEmail); 
     }
 
@@ -63,12 +66,32 @@ const ParrotFrontApp = () => {
       setIsLoading(true);
       try {
         const querySnapshot = await getDocs(collection(db, "parrot_templates"));
-        const templates = [];
-        querySnapshot.forEach((doc) => { templates.push(doc.data()); });
+        const allTemplates = [];
+        querySnapshot.forEach((doc) => { allTemplates.push(doc.data()); });
 
-        if (templates.length > 0) {
-          const randomIndex = Math.floor(Math.random() * templates.length);
-          const randomData = templates[randomIndex];
+        if (allTemplates.length > 0) {
+          // 💡 1. 로컬 스토리지에서 '이미 본 테마' 기억 가져오기
+          let usedThemes = JSON.parse(localStorage.getItem('parrot_used_themes') || '[]');
+
+          // 💡 2. 아직 안 쓴 테마만 골라내기
+          let availableTemplates = allTemplates.filter(t => !usedThemes.includes(t.theme_kr));
+
+          // 💡 3. [자동 리셋 로직] 준비된 테마를 다 썼다면? 기억을 지우고 처음부터 다시 재활용!
+          if (availableTemplates.length === 0) {
+            usedThemes = [];
+            availableTemplates = allTemplates;
+            console.log("모든 테마를 순회하여 리스트를 리셋(재활용)합니다!");
+          }
+
+          // 💡 4. 남은 테마 중에서 랜덤으로 하나 뽑기
+          const randomIndex = Math.floor(Math.random() * availableTemplates.length);
+          const randomData = availableTemplates[randomIndex];
+
+          // 💡 5. 뽑힌 테마는 '사용한 테마' 목록에 추가하고 내장 메모리에 저장
+          usedThemes.push(randomData.theme_kr);
+          localStorage.setItem('parrot_used_themes', JSON.stringify(usedThemes));
+
+          // 화면에 출력 세팅
           setTemplateData(randomData); 
           if (randomData.levels && randomData.levels.beginner) {
             setDiaryInput(formatBlankForDisplay(pickOneSentence(randomData.levels.beginner.template)));
@@ -102,6 +125,40 @@ const ParrotFrontApp = () => {
     setIsLoading(false);
   };
 
+  // 💡 [완벽 픽스 3] 서버와 직접 소통하여 정확한 정보 획득 후 시작
+  const handleStart = async () => {
+    if (!email.includes('@')) {
+      alert("결과를 받아보실 올바른 이메일 주소를 입력해 주세요! 🦜");
+      return;
+    }
+    
+    setIsCheckingLogin(true);
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwbtPm73hkDilxPQFqn_bxvBEeZDthaXLabfz2E7raBM2Uxa3hIif9cPyBNIUCVvpbw/exec";
+    
+    try {
+      // 1. 서버에 이메일을 보내서 신규 유저인지, 잔액이 얼마인지 물어봄
+      const queryParams = new URLSearchParams({ action: 'check_balance', email: email }).toString();
+      const response = await fetch(`${GAS_URL}?${queryParams}`, { method: "GET", mode: "cors" });
+      const data = JSON.parse(await response.text());
+      
+      if (data.success) {
+        setCredits(data.remaining);
+        setIsNewUser(data.isNewUser);
+      }
+    } catch (error) {
+      console.error("서버 조회 실패:", error);
+      // 서버 에러 시 최후의 보루로 이메일 전용 로컬 스토리지 확인
+      const saved = localStorage.getItem(`parrot_credits_${email}`);
+      setCredits(saved !== null ? parseInt(saved, 10) : 33);
+    } finally {
+      setIsCheckingLogin(false);
+    }
+
+    // 2. 정보 로딩 완료 후 폭죽 애니메이션 실행
+    setShowConfetti(true);
+    setTimeout(() => { setShowConfetti(false); setStep('writing'); }, 2500); // 문구 읽을 시간 2.5초 확보
+  };
+
   const handleLevelChange = (level) => {
     setCurrentLevel(level);
     if (templateData && templateData.levels[level]) {
@@ -109,21 +166,7 @@ const ParrotFrontApp = () => {
     }
   };
 
-  const handleStart = () => {
-    if (!email.includes('@')) {
-      alert("결과를 받아보실 올바른 이메일 주소를 입력해 주세요! 🦜");
-      return;
-    }
-    setShowConfetti(true);
-    setTimeout(() => { setShowConfetti(false); setStep('writing'); }, 2000); 
-  };
-
   const handleRewrite = async () => {
-    if (credits <= 0) {
-      alert("잔여 크레딧이 없습니다. 충전이 필요합니다! 🦜");
-      return;
-    }
-
     setIsProcessing(true);
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwbtPm73hkDilxPQFqn_bxvBEeZDthaXLabfz2E7raBM2Uxa3hIif9cPyBNIUCVvpbw/exec";
 
@@ -132,8 +175,16 @@ const ParrotFrontApp = () => {
       const response = await fetch(`${GAS_URL}?${queryParams}`, { method: "GET", mode: "cors" });
       const data = JSON.parse(await response.text());
       
+      if (data.success === false) {
+        alert(data.message || "잔여 크레딧이 없거나 서버 오류가 발생했습니다! 🦜");
+        setIsProcessing(false);
+        return;
+      }
+
       setAiResult(data);
-      setCredits(prev => prev - 1);
+      if (data.remaining !== undefined) {
+        setCredits(data.remaining);
+      }
 
       try {
         await addDoc(collection(db, "parrot_history"), {
@@ -149,7 +200,7 @@ const ParrotFrontApp = () => {
 
     } catch (error) {
       console.error("통신 실패:", error);
-      alert("연결에 실패했습니다. (콘솔 로그를 확인해 주세요)");
+      alert("연결에 실패했습니다.");
     } finally {
       setIsProcessing(false);
     }
@@ -168,6 +219,7 @@ const ParrotFrontApp = () => {
   const closePopup = () => {
     stopAudioSafe();
     setAiResult(null);
+    setDiaryInput('');
   };
 
   const handleListenAndRepeat = (targetAiResult, itemId = 'popup') => {
@@ -241,17 +293,30 @@ const ParrotFrontApp = () => {
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center h-screen bg-emerald-50">
       <div className="text-5xl animate-bounce mb-4">🦜</div>
-      <p className="text-emerald-800 font-black text-xl tracking-wider">Parrot Engine Booting...</p>
+      <p className="text-emerald-800 font-black text-xl tracking-wider">Parrot Engine Loading...</p>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-emerald-50 relative overflow-hidden flex flex-col items-center justify-center p-4 font-sans pb-20">
       
+      {/* 💡 [완벽 픽스 4] 신규 유저 축하 메시지 확실하게 추가 */}
       {showConfetti && (
-        <div className="absolute inset-0 z-50 pointer-events-none flex flex-col items-center justify-center animate-in zoom-in duration-500">
-          <div className="text-8xl mb-4 animate-bounce">🎉</div>
-          <h2 className="text-4xl font-black text-emerald-600 drop-shadow-md">Welcome to Parrot Diary!</h2>
+        <div className="absolute inset-0 z-[100] pointer-events-none flex flex-col items-center justify-center animate-in zoom-in duration-500 bg-emerald-50/80 backdrop-blur-sm">
+          <div className="text-8xl mb-6 animate-bounce">🎉</div>
+          {isNewUser ? (
+            <div className="text-center px-4">
+              <h2 className="text-4xl sm:text-5xl font-black text-emerald-600 drop-shadow-md mb-4">환영합니다!</h2>
+              <div className="bg-yellow-400 text-yellow-900 px-6 py-3 rounded-full font-black text-xl sm:text-2xl shadow-xl animate-pulse border-4 border-yellow-200">
+                🎁 첫 가입 33 Credits 무상 증정!
+              </div>
+            </div>
+          ) : (
+            <div className="text-center px-4">
+              <h2 className="text-4xl sm:text-5xl font-black text-emerald-600 drop-shadow-md">Welcome Back!</h2>
+              <p className="text-emerald-800 font-bold mt-4 text-xl">Dr. Parrot AI와 함께해 볼까요?</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -270,7 +335,7 @@ const ParrotFrontApp = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="example@gmail.com"
-                  className="w-full p-4 rounded-2xl border-2 border-emerald-100 focus:border-emerald-400 outline-none transition-colors"
+                  className="w-full p-4 rounded-2xl border-2 border-emerald-100 focus:border-emerald-400 outline-none transition-colors font-medium text-gray-700"
                 />
               </div>
 
@@ -299,9 +364,16 @@ const ParrotFrontApp = () => {
             <div className="flex flex-col gap-3 mt-8">
               <button 
                 onClick={handleStart}
-                className="w-full bg-emerald-600 text-white text-xl font-black py-5 rounded-2xl hover:bg-emerald-700 transition-transform active:scale-95 shadow-xl shadow-emerald-200"
+                disabled={isCheckingLogin}
+                className="w-full bg-emerald-600 text-white text-xl font-black py-5 rounded-2xl hover:bg-emerald-700 transition-transform active:scale-95 shadow-xl shadow-emerald-200 disabled:bg-emerald-400 flex justify-center items-center gap-2"
               >
-                새 일기 쓰기 🚀
+                {isCheckingLogin ? (
+                  <>
+                    <span className="animate-spin">🔄</span> 계정 정보 동기화 중...
+                  </>
+                ) : (
+                  "새 일기 쓰기 🚀"
+                )}
               </button>
               
               <button 
@@ -388,7 +460,7 @@ const ParrotFrontApp = () => {
               disabled={isProcessing || !diaryInput.trim()}
               className="w-full mt-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95 text-lg flex justify-center items-center gap-2 disabled:bg-gray-300"
             >
-              {isProcessing ? "🦜🎓 Parrot 선생님이 첨삭 중이에요!" : "✨ 선생님에게 제출하기 (-1점)"}
+              {isProcessing ? "🦜🎓 Dr. Parrot AI가 첨삭 중이에요!" : "✨ 선생님에게 제출하기 (-1점)"}
             </button>
           </div>
         </div>
@@ -455,6 +527,7 @@ const ParrotFrontApp = () => {
         </div>
       )}
 
+      {/* 팝업 모달 생략 (이전과 완전히 동일함) */}
       {aiResult && step === 'writing' && (
         <div className="fixed inset-0 bg-emerald-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[50]">
           <div className="bg-white w-full max-w-2xl rounded-[2.5rem] p-6 sm:p-10 shadow-2xl relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
@@ -463,13 +536,30 @@ const ParrotFrontApp = () => {
             
             <div className="text-center mb-6 sm:mb-8 mt-4 sm:mt-2 shrink-0">
               <div className="relative inline-block mt-4 mb-2">
-                <span className="text-7xl block">🦜</span>
-                <span className="text-5xl absolute -top-4 -left-3 -rotate-12 z-20 drop-shadow-md">🎓</span>
+                <span className="text-5xl absolute -top-6 -left-3 -rotate-12 z-0 drop-shadow-md">🎓</span>
+                <span className="text-7xl block relative z-10">🦜</span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-black text-gray-800 uppercase tracking-tighter mt-2">Dr. Parrot's Feedback</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-gray-800 uppercase tracking-tighter mt-2">Dr. Parrot Feedback</h2>
             </div>
             
             <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 pb-4">
+              <div className="mb-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border border-emerald-400">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
+                    <span className="text-3xl sm:text-4xl animate-bounce">💌</span>
+                    <h4 className="font-extrabold text-lg sm:text-xl text-white tracking-tight">
+                      잠깐! 더 자세한 내용은 이메일을 확인하세요!
+                    </h4>
+                  </div>
+                  <p className="text-emerald-50 text-sm sm:text-[15px] leading-relaxed font-medium break-keep">
+                    보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
+                    내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
+                    <br/><span className="block mt-5 font-bold text-white text-[15px] sm:text-base bg-emerald-800/80 p-3 sm:p-4 rounded-xl border border-emerald-500 text-center shadow-inner">잠시 후에 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
+                  </p>
+                </div>
+              </div>
+
               <div className="bg-emerald-50 p-4 sm:p-6 rounded-3xl mb-6 border-l-8 border-emerald-500">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 border-b border-emerald-200 pb-3">
                   <h3 className="text-emerald-800 font-bold flex items-center gap-1.5 text-lg">
@@ -510,7 +600,6 @@ const ParrotFrontApp = () => {
                     </div>
                   </div>
                 )}
-
                 {aiResult.vivid_expression && (
                   <div className="flex gap-4 bg-orange-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
                     <div className="text-orange-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-orange-100">💡</div>
@@ -521,7 +610,6 @@ const ParrotFrontApp = () => {
                     </div>
                   </div>
                 )}
-
                 {aiResult.expression && (
                   <div className="flex gap-4 bg-blue-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
                     <div className="text-blue-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-blue-100">📖</div>
@@ -537,7 +625,6 @@ const ParrotFrontApp = () => {
                     </div>
                   </div>
                 )}
-
                 {aiResult.tip && (
                   <div className="flex gap-4 bg-pink-50 p-4 sm:p-5 rounded-3xl flex-col sm:flex-row">
                     <div className="text-pink-600 w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-xl bg-pink-100">✨</div>
@@ -548,44 +635,8 @@ const ParrotFrontApp = () => {
                   </div>
                 )}
               </div>
-
-              <div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border border-emerald-400">
-                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
-                    <span className="text-3xl sm:text-4xl animate-bounce">💌</span>
-                    <h4 className="font-extrabold text-lg sm:text-xl text-white tracking-tight">
-                      잠깐! 더 자세한 내용은 이메일을 확인하세요!
-                    </h4>
-                  </div>
-                  <p className="text-emerald-50 text-sm sm:text-[15px] leading-relaxed font-medium break-keep">
-                    보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
-                    내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">맞춤형 참고서 DB</span> 겸 
-                    아이의 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
-                    <br/><span className="block mt-5 font-bold text-white text-[15px] sm:text-base bg-emerald-800/80 p-3 sm:p-4 rounded-xl border border-emerald-500 text-center shadow-inner">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
-                  </p>
-                </div>
-              </div>
             </div>
-{/* 💡 시선 강탈 이메일 초대장 블록 탑재 */}
-<div className="mt-6 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-3xl p-6 shadow-xl relative overflow-hidden border border-emerald-400">
-                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-4 border-b border-emerald-500 pb-3">
-                    <span className="text-3xl sm:text-4xl animate-bounce">💌</span>
-                    <h4 className="font-extrabold text-lg sm:text-xl text-white tracking-tight">
-                      잠깐! 더 자세한 내용은 이메일을 확인하세요!
-                    </h4>
-                  </div>
-                  <p className="text-emerald-50 text-sm sm:text-[15px] leading-relaxed font-medium break-keep">
-                    보내드리는 이메일의 <strong className="text-yellow-300 underline decoration-yellow-300/50 underline-offset-4 font-extrabold">'Dr. Parrot AI + Human 선생님'</strong>의 <strong className="text-yellow-300 font-extrabold">'전문 첨삭 콘텐츠'</strong>는 
-                    내 아이만을 위한 소중한 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">맞춤형 참고서 DB</span> 겸 
-                    아이의 <span className="bg-emerald-900/60 px-2 py-0.5 rounded-md text-white border border-emerald-500 inline-block mt-1 sm:mt-0 font-bold">학습 포트폴리오</span>로 완벽하게 활용될 수 있답니다. 
-                    <br/><span className="block mt-5 font-bold text-white text-[15px] sm:text-base bg-emerald-800/80 p-3 sm:p-4 rounded-xl border border-emerald-500 text-center shadow-inner">지금 바로 메일함을 열어 프리미엄 강좌를 확인해 보세요! 🏃‍♀️💨</span>
-                  </p>
-                </div>
-              </div>
-              {/* 👆 초대장 블록 끝 👆 */}
+
             <div className="shrink-0 mt-2 sm:mt-4 pt-4 border-t border-gray-100">
               <button onClick={closePopup} className="w-full bg-gray-900 text-white font-black py-4 sm:py-5 rounded-2xl hover:bg-black transition-colors shadow-lg shadow-gray-200 text-lg">
                 확인했어요!
@@ -602,16 +653,14 @@ const ParrotFrontApp = () => {
             <div className="text-6xl mb-4">😢</div>
             <h3 className="text-2xl font-black text-gray-800 mb-2">소리를 들을 수 없어요!</h3>
             <p className="text-gray-500 font-medium text-sm mb-6 leading-relaxed">
-              카카오톡에서는 음성 기능을 지원하지 않아요.<br/>아래 버튼을 누르면 <strong>Dr. Parrot AI의 포트폴리오</strong>(크롬/사파리)로 이동해서 맘껏 들을 수 있습니다!
+              카카오톡에서는 음성 기능을 지원하지 않아요.<br/>아래 버튼을 누르면 <strong>Dr. Parrot AI 포트폴리오</strong>로 이동해서 맘껏 들을 수 있습니다!
             </p>
-
             <button 
               onClick={openInExternalBrowser}
               className="w-full bg-blue-600 text-white text-lg font-black py-4 rounded-xl mb-3 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
             >
               🎓 내 포트폴리오로 이동하기
             </button>
-
             <button 
               onClick={() => setNeedExternalBrowser(false)}
               className="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors"
