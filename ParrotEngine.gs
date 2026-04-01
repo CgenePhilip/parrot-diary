@@ -36,50 +36,35 @@ function onOpen() {
 }
 
 // =========================================================================
-// 🌐 1. 프론트엔드 수신부 (doGet) - 잔액 조회 기능 추가 및 0점 철벽 방어
+// 🌐 1. 프론트엔드 수신부 (doGet) - 변수 호이스팅 오류 해결 & 0점 철벽 방어
 // =========================================================================
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEET_USERS); 
 
   try {
+    // 💡 [안전장치 1] 변수 선언을 최상단으로 끌어올려 Reference Error 원천 차단!
+    let initialBalance = CONFIG.DEFAULT_CREDITS;
     const userEmail = e.parameter.email || "이메일 없음"; 
     const action = e.parameter.action;
 
-    // 💡 [완벽 픽스 1] 로그인 시 순수 잔액 조회 API (새 일기 쓰기 버튼 누를 때 즉시 확인)
-    if (action === "check_balance") {
-      let isNewUser = true;
-      let currentBalance = CONFIG.DEFAULT_CREDITS;
-      
-      if (userEmail !== "이메일 없음") {
-        const exists = checkIfUserExists(userEmail);
-        if (exists) {
-          isNewUser = false; // 시트에 기록이 있으면 기존 유저
-          currentBalance = getUserCurrentBalance(userEmail); // 정확한 최신 잔액 조회
-        }
-      }
-      
-      return ContentService.createTextOutput(JSON.stringify({ 
-        success: true, 
-        remaining: currentBalance,
-        isNewUser: isNewUser
-      })).setMimeType(ContentService.MimeType.TEXT);
+    if (userEmail !== "이메일 없음") {
+      initialBalance = checkIfUserExists(userEmail) ? getUserCurrentBalance(userEmail) : CONFIG.DEFAULT_CREDITS;
     }
 
-    // --- 기존 일기 제출 및 첨삭 로직 ---
+    // 잔액 조회 액션 처리
+    if (action === "check_balance") {
+      let isNewUser = (userEmail === "이메일 없음") ? true : !checkIfUserExists(userEmail);
+      return ContentService.createTextOutput(JSON.stringify({ success: true, remaining: initialBalance, isNewUser: isNewUser })).setMimeType(ContentService.MimeType.TEXT);
+    }
+
     const userText = e.parameter.text;
     const level = e.parameter.level;
     
     if (!userText) return ContentService.createTextOutput("Parrot Server is Running!");
 
-    // 제출 전 잔액 재확인
-    let currentBalance = CONFIG.DEFAULT_CREDITS;
-    if (userEmail !== "이메일 없음") {
-      currentBalance = checkIfUserExists(userEmail) ? getUserCurrentBalance(userEmail) : CONFIG.DEFAULT_CREDITS;
-    }
-    
-    // 🚨 0점 이하 철벽 차단
-    if (currentBalance <= 0) {
+    // 🚨 [방어 1단계] 0점 이하 철벽 차단
+    if (initialBalance <= 0) {
       return ContentService.createTextOutput(JSON.stringify({ 
         success: false, 
         corrected_lines: ["🚨 크레딧이 모두 소진되었습니다."], 
@@ -87,23 +72,154 @@ function doGet(e) {
       })).setMimeType(ContentService.MimeType.TEXT);
     }
 
-    // AI 첨삭 생성 및 정확한 1점 차감
+    // 🚨 [방어 2단계] 빈칸 제출 시 화면 안 멈추고 제자리에서 막기
+    const hasUntouchedBlank = /\[[^a-zA-Z]*\]/.test(userText);
+    if (userText.trim() === "" || hasUntouchedBlank) {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: "🚨 앗! 아직 빈칸에 영어 단어를 적지 않았어요. 괄호와 밑줄을 지우고 올바른 영어 단어를 입력해 주세요!" 
+      })).setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    // 🤖 AI 첨삭 요청 (URL 복사 오류 해결 완료된 함수 호출)
     const aiResponseRaw = runFullAutoCorrection(userText);
-    let newBalance = Math.max(0, currentBalance - 1);
+    
+    // AI 응답 안전하게 파싱
+    let responsePayload;
+    try {
+      responsePayload = JSON.parse(aiResponseRaw);
+    } catch(err) {
+      // 💡 [중요] 파싱 에러 시에도 무조건 error: true 플래그를 달아줍니다!
+      responsePayload = { error: true, corrected_lines: ["🚨 데이터 파싱 에러"], tip: "AI 응답을 처리하지 못했습니다." };
+    }
+    
+    // 시트 기록 및 포인트 차감 (Lock)
+    const lock = LockService.getScriptLock();
+    let newBalance = initialBalance; // 초기값 세팅
+    
+    try {
+      lock.waitLock(10000);
+      
+      let realTimeBalance = CONFIG.DEFAULT_CREDITS;
+      if (userEmail !== "이메일 없음") {
+        realTimeBalance = checkIfUserExists(userEmail) ? getUserCurrentBalance(userEmail) : CONFIG.DEFAULT_CREDITS;
+      }
+      
+      if (realTimeBalance <= 0) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, corrected_lines: ["🚨 크레딧이 모두 소진되었습니다."], tip: "충전 후 다시 시도해주세요." })).setMimeType(ContentService.MimeType.TEXT);
+      }
+      
+      // 💡 [핵심] 통신 에러가 났다면 절대 크레딧을 깎지 않습니다!
+      if (responsePayload.error === true) {
+        newBalance = realTimeBalance; // ❌ 차감 없이 그대로 유지
+        sheet.appendRow([new Date(), userEmail, level, userText, aiResponseRaw, "", "❌ API Error", newBalance]);
+      } else {
+        newBalance = Math.max(0, realTimeBalance - 1); // ✅ 정상일 때만 1점 차감
+        sheet.appendRow([new Date(), userEmail, level, userText, aiResponseRaw, "", "🕒 Pending", newBalance]);
+      }
+      SpreadsheetApp.flush(); 
+      
+    } catch(lockErr) {
+      newBalance = initialBalance; // Lock 에러 시에도 차감 방어
+      sheet.appendRow([new Date(), userEmail, level, userText, aiResponseRaw, "", "❌ Lock Error", newBalance]);
+    } finally {
+      lock.releaseLock();
+    }
 
-    // 시트 기록
-    sheet.appendRow([new Date(), userEmail, level, userText, aiResponseRaw, "", "🕒 Pending", newBalance]);
-    SpreadsheetApp.flush(); 
-
-    // 결과 반환
-    const responsePayload = JSON.parse(aiResponseRaw);
     responsePayload.success = true;
     responsePayload.remaining = newBalance;
-
     return ContentService.createTextOutput(JSON.stringify(responsePayload)).setMimeType(ContentService.MimeType.TEXT);
+    
   } catch (err) {
-    sheet.appendRow([new Date(), "ERROR", err.toString()]);
+    sheet.appendRow([new Date(), "ERROR", err.toString(), "", "", "", "❌ Fatal Error", 0]);
     return ContentService.createTextOutput(JSON.stringify({ success: false, corrected_lines: ["연결 오류"], tip: err.toString() })).setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+// =========================================================================
+// 🤖 AI 코어 로직 - 잡소리 제거 및 문법 집중 모드
+// =========================================================================
+function runFullAutoCorrection(studentSentence) {
+  const systemPrompt = `
+    당신은 한국 아이들과 엄마들을 돕는 최고 수준의 원어민 튜터 'Dr. Parrot AI'입니다.
+    학생은 다음 문장을 제출했습니다: "${studentSentence}"
+
+    [🔥 1. 완벽한 문법 교정 (CRITICAL)]
+    - 학생의 문장에 문법적 오류, 어색한 전치사, 잘못된 구조가 있다면 망설이지 말고 완벽하고 자연스러운 원어민 표현으로 뜯어고치세요.
+
+    [🔥 2. 절대 금지어 (FATAL RULE - 매우 중요!)]
+    - 'mom_guide'나 다른 어떤 설명에서도 "빈칸", "템플릿", "기호", "채우는 과정" 이라는 단어나 개념을 **절대** 언급하지 마세요.
+    - 학생이 '빈칸을 채웠다'고 생각하지 말고, '그냥 자기가 영작한 문장을 제출했다'고 간주하고, 오직 **순수한 영어 문법과 단어의 뉘앙스**에 대해서만 설명하세요.
+
+    [🔥 3. 자연스러운 번역]
+    - 한국인들이 일상에서 쓰는 자연스러운 구어체를 사용하세요.
+
+    [🔥 4. 어휘(Vocabulary) 누락 절대 금지]
+    - 교정된 문장에 쓰인 '핵심 영단어'를 최소 4개 이상 추출하세요.
+    - 형태: "영어 해설 -> 자연스러운 한국어 뜻"
+
+    [🔥 5. 출력 포맷 엄수 (JSON)]
+    반환값은 반드시 아래 JSON 형식을 엄격히 지켜야 합니다. (마크다운 블록 금지)
+
+    {
+      "corrected_lines": [
+        "[완벽하게 교정된 영어 문장] / [자연스러운 한글 번역]"
+      ],
+      "mom_guide": "아이가 쓴 문장의 문법적 아쉬운 점과 교정한 이유를 친절하게 설명 (🚨 절대 '빈칸'이나 '템플릿'이라는 단어 사용 금지)",
+      "vivid_expression": {
+        "expression": "[실생활에서 많이 쓰는 생생한 대체 영어 표현]",
+        "why": "이 표현이 왜 더 자연스러운지 설명 (한국어)"
+      },
+      "expression": {
+        "단어1": "영영사전 해설 -> 자연스러운 한국어 뜻",
+        "단어2": "영영사전 해설 -> 자연스러운 한국어 뜻"
+      },
+      "tip": "🌟 당신의 노력과 열정이 빛나고 있어요! 계속 이렇게 멋진 모습 보여주세요! 💖"
+    }
+  `;
+
+  try {
+    // 💡 [핵심 픽스] 마크다운 링크 찌꺼기를 제거한 순수한 URL입니다!
+    const url = "https://api.openai.com/v1/chat/completions";
+    
+    const res = UrlFetchApp.fetch(url, {
+      method: "post", contentType: "application/json",
+      headers: { Authorization: "Bearer " + CONFIG.API_KEY },
+      payload: JSON.stringify({
+        model: CONFIG.MODEL, 
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: `학생 문장: "${studentSentence}"` }], 
+        temperature: 0.3 
+      }),
+      muteHttpExceptions: true
+    });
+    
+    const responseCode = res.getResponseCode();
+    const responseText = res.getContentText();
+
+    if (responseCode !== 200) {
+      // 💡 [핵심 픽스] 통신 에러 시 error: true 를 반드시 리턴하여 크레딧이 깎이지 않도록 방어합니다!
+      return JSON.stringify({
+        error: true,
+        corrected_lines: [`🚨 OpenAI 서버 에러 (코드: ${responseCode})`],
+        mom_guide: `서버 응답 오류입니다. 사유: ${responseText}`,
+        vivid_expression: { "expression": "Server Error", "why": "API 오류" },
+        expression: {},
+        tip: "오류가 발생하여 크레딧은 차감되지 않았습니다."
+      });
+    }
+    
+    const responseJson = JSON.parse(responseText);
+    const rawContent = responseJson.choices[0].message.content;
+    const cleanContent = rawContent.replace(/```json/gi, '').replace(/```/gi, '').trim();
+    return cleanContent;
+    
+  } catch (e) {
+    // 💡 앱스 스크립트 내부 에러 발생 시에도 크레딧 보호를 위해 error: true 리턴!
+    return JSON.stringify({ 
+      error: true,
+      corrected_lines: ["🚨 통신 에러"], 
+      tip: "오류가 발생하여 크레딧은 차감되지 않았습니다. 상세: " + e.toString() 
+    });
   }
 }
 
@@ -413,37 +529,43 @@ function sendLowCreditEmail(email, balance) {
 // 🤖 4. AI 코어 및 팝업, 팩토리 등 (기존 코드 완벽 유지)
 // =========================================================================
 
+// =========================================================================
+// 🤖 AI 코어 로직 - 잡소리 제거 및 문법 집중 모드
+// =========================================================================
 function runFullAutoCorrection(studentSentence) {
   const systemPrompt = `
-    당신은 한국 아이들과 엄마들을 돕는 엘리트 원어민 튜터 'Dr. Parrot AI'입니다.
-    학생은 템플릿의 빈칸을 채워 영어 일기("${studentSentence}")를 제출했습니다.
+    당신은 한국 아이들과 엄마들을 돕는 최고 수준의 원어민 튜터 'Dr. Parrot AI'입니다.
+    학생은 다음 문장을 제출했습니다: "${studentSentence}"
 
-    [🔥 1. 템플릿 역산 및 일치 알고리즘 (CRITICAL)]
-    - 학생이 제출한 문장 속 단어들을 보고, 원래 의도된 "모범 정답(Model Answer)"이 무엇인지 먼저 역산하세요.
-    - 교정된 문장은 템플릿의 문맥과 100% 일치해야 하며, 학생이 쓴 문장을 하나도 누락하지 마세요.
+    [🔥 1. 완벽한 문법 교정 (CRITICAL)]
+    - 학생의 문장에 문법적 오류, 어색한 전치사(예: imagine of), 잘못된 구조가 있다면 망설이지 말고 완벽하고 자연스러운 원어민 표현으로 뜯어고치세요.
 
-    [🔥 2. 자연스러운 번역 (NO 기계 번역)]
+    [🔥 2. 절대 금지어 (FATAL RULE - 매우 중요!)]
+    - 'mom_guide'나 다른 어떤 설명에서도 "빈칸", "템플릿", "기호", "채우는 과정" 이라는 단어나 개념을 **절대** 언급하지 마세요.
+    - 학생이 '빈칸을 채웠다'고 생각하지 말고, '그냥 자기가 영작한 문장을 제출했다'고 간주하고, 오직 **순수한 영어 문법과 단어의 뉘앙스**에 대해서만 설명하세요.
+
+    [🔥 3. 자연스러운 번역]
     - 한국인들이 일상에서 쓰는 자연스러운 구어체를 사용하세요.
 
-    [🔥 3. 어휘(Vocabulary) 누락 절대 금지 & 자연스러운 뜻풀이]
-    - 교정된 전체 문장에 쓰인 '핵심 영단어'를 최소 4개 이상 추출하세요.
-    - 뜻풀이는 "영어 해설 -> 자연스러운 한국어 뜻" 형태로 작성하세요.
+    [🔥 4. 어휘(Vocabulary) 누락 절대 금지]
+    - 교정된 문장에 쓰인 '핵심 영단어'를 최소 4개 이상 추출하세요.
+    - 형태: "영어 해설 -> 자연스러운 한국어 뜻"
 
-    [🔥 4. 출력 포맷 엄수 (JSON)]
+    [🔥 5. 출력 포맷 엄수 (JSON)]
     반환값은 반드시 아래 JSON 형식을 엄격히 지켜야 합니다. (마크다운 블록 금지)
 
     {
       "corrected_lines": [
-        "[1번째 교정된 영어 문장] / [1번째 자연스러운 한글 번역]"
+        "[완벽하게 교정된 영어 문장] / [자연스러운 한글 번역]"
       ],
-      "mom_guide": "아이가 쓴 문장에 대한 문법 설명 및 교정 이유 (한국어)",
+      "mom_guide": "아이가 쓴 문장의 문법적 아쉬운 점과 교정한 이유를 친절하게 설명 (🚨 절대 '빈칸'이나 '템플릿'이라는 단어 사용 금지)",
       "vivid_expression": {
         "expression": "[실생활에서 많이 쓰는 생생한 대체 영어 표현]",
         "why": "이 표현이 왜 더 자연스러운지 설명 (한국어)"
       },
       "expression": {
-        "영어단어1": "영영사전 해설 -> 자연스러운 한국어 뜻",
-        "영어단어2": "영영사전 해설 -> 자연스러운 한국어 뜻"
+        "단어1": "영영사전 해설 -> 자연스러운 한국어 뜻",
+        "단어2": "영영사전 해설 -> 자연스러운 한국어 뜻"
       },
       "tip": "🌟 당신의 노력과 열정이 빛나고 있어요! 계속 이렇게 멋진 모습 보여주세요! 💖"
     }
@@ -460,7 +582,13 @@ function runFullAutoCorrection(studentSentence) {
       }),
       muteHttpExceptions: true
     });
-    return JSON.parse(res.getContentText()).choices[0].message.content;
+    
+    // 💡 [프리징 원천 차단] AI가 가끔 뱉는 마크다운 찌꺼기(```json)를 강제로 뜯어내어 파싱 에러를 막습니다.
+    const responseJson = JSON.parse(res.getContentText());
+    const rawContent = responseJson.choices[0].message.content;
+    const cleanContent = rawContent.replace(/```json/gi, '').replace(/```/gi, '').trim();
+    return cleanContent;
+    
   } catch (e) {
     return JSON.stringify({ corrected_lines: ["🚨 통신 에러"], tip: e.toString() });
   }
@@ -538,18 +666,20 @@ function callOpenAIToGenerateTheme(themeKr) {
   [CRITICAL RULES]
   1. No vocabulary repetition: Use distinct, various words for every single sentence.
   2. Base forms only: Keywords MUST be base forms.
-  3. Blank Format (STRICT) - 🚨 LEVEL SPECIFIC RULES:
-     - 🌱 Beginner: 1 blank per sentence. Format: [blank_1_KOREAN_MEANING]
-     - 🏃 Intermediate: Exactly 2 blanks per sentence. The FIRST blank MUST be [blank_1_KOREAN_MEANING] and the SECOND blank MUST be [blank_2_word]. DO NOT put hint words (like 'nature') inside the second blank.
+  3. Blank Format (STRICT) - 🚨 LEVEL SPECIFIC RULES (DO NOT USE ENGLISH IN BLANKS):
+     - 🌱 Beginner: 1 blank per sentence. The hint inside the blank MUST ABSOLUTELY be in KOREAN (한글). Format: [blank_1_한글뜻]. (Example: [blank_1_날씨], NOT [blank_1_weather]).
+     - 🏃 Intermediate: Exactly 2 blanks per sentence. The FIRST blank MUST be in KOREAN ([blank_1_한글뜻]) and the SECOND blank MUST be [blank_2_word]. DO NOT put hint words inside the second blank.
      - 🔥 Advanced: 3 blanks per sentence. Format: [blank_number_word] ONLY.
      - Numbering MUST reset to 1 for every new sentence.
   
   4. 🚨 PERFECT ARTICLES (a/an) - FATAL GRAMMAR RULE 🚨:
-     - If the intended answer keyword starts with a vowel (a, e, i, o, u), you MUST write 'an' before the blank. (Example: "I want to eat an [blank_1_사과]" -> intended word: apple)
-     - If it starts with a consonant, use 'a'. (Example: "I saw a [blank_1_벌레]" -> intended word: bug)
-     - NEVER output 'a [blank]' if the intended answer is a vowel-starting word like 'insect' or 'animal'.
+     - If the intended answer keyword starts with a vowel (a, e, i, o, u), you MUST write 'an' before the blank. (Example: "I want to eat an [blank_1_사과]")
+     - If it starts with a consonant, use 'a'. (Example: "I saw a [blank_1_벌레]")
   
-  5. Keyword Match (STRICT): The 'keywords' array MUST absolutely contain ALL correct base-form answers required to fill every blank. Never omit the intended answer words. Add 2-3 extra decoy words related to the theme.
+  5. 🚨 Keyword Match & LIMIT (STRICT): 
+     - The 'keywords' array MUST contain the EXACT correct base-form answers.
+     - Add strictly 2 to 3 extra decoy words ONLY. 
+     - The TOTAL number of words in the 'keywords' array MUST NOT exceed 7 words. Do not flood the screen with words.
 
   [MANDATORY OUTPUT STRUCTURE EXAMPLE]
   {
@@ -566,7 +696,7 @@ function callOpenAIToGenerateTheme(themeKr) {
   const payload = {
     model: CONFIG.MODEL, 
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: `Create a diary template for the theme: "${themeKr}". Return ONLY JSON.` }],
-    temperature: 0.7 // 💡 대표님의 의견대로 창의성 0.7을 유지합니다!
+    temperature: 0.7 
   };
 
   const response = UrlFetchApp.fetch(url, { method: "post", headers: { "Authorization": "Bearer " + CONFIG.API_KEY, "Content-Type": "application/json" }, payload: JSON.stringify(payload) });
