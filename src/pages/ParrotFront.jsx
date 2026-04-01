@@ -168,7 +168,7 @@ const ParrotFrontApp = () => {
 
   const handleRewrite = async () => {
     setIsProcessing(true);
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwbtPm73hkDilxPQFqn_bxvBEeZDthaXLabfz2E7raBM2Uxa3hIif9cPyBNIUCVvpbw/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwFGSLMM0hGXuEBAztsT8wcQ7ahKQx3CHzyW7-JvZmJhUegu1Y_82ZeWQopqYIuaU3N/exec";
 
     try {
       const queryParams = new URLSearchParams({ text: diaryInput, level: currentLevel, email: email }).toString();
